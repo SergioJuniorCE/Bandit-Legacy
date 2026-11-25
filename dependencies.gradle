@@ -14,7 +14,7 @@
  *       but not published as Maven dependencies - useful for RFG-deobfuscated dependencies or local testing
  *  - runtimeOnly("g:n:v:c"): if you don't need this at compile time, but want it to be present at runtime
  *       Available at runtime for mods depending on this mod
- *  - annotationProcessor("g:n:v:c"): mostly for java compiler plugins, if you know you need this, use it, otherwise don't worry
+ *  - annotationProcessor("g:n:v:c"): mostly for java compiler plugins, if you know you need it, use it, otherwise don't worry
  *  - testCONFIG("g:n:v:c") - replace CONFIG by one of the above (except api), same as above but for the test sources instead of main
  *
  *  - shadowImplementation("g:n:v:c"): effectively the same as API, but the dependency is included in your jar under a renamed package name
@@ -34,21 +34,22 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 dependencies {
-    runtimeOnly("com.github.GTNewHorizons:Forgelin:2.0.0-GTNH:dev")
-
-    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.1.10")
-    compileOnly("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.10")
-    compileOnly("org.jetbrains.kotlin:kotlin-reflect:2.1.10")
+    // Kotlin is provided at runtime by Forgelin; compile against the version it bundles.
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.1.0")
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
+    compileOnly("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
     compileOnly("org.jetbrains:annotations:26.0.2")
     compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
     compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.10.1")
 
-    implementation("com.github.GTNewHorizons:GTNHLib:0.5.23:dev")
-    implementation("com.github.GTNewHorizons:CodeChickenCore:1.4.1:dev")
+    implementation("com.github.GTNewHorizons:GTNHLib:0.12.10:dev")
+    implementation("com.github.GTNewHorizons:CodeChickenCore:1.5.1:dev")
 
-    devOnlyNonPublishable("com.github.GTNewHorizons:GT5-Unofficial:5.09.51.389:dev")
+    runtimeOnly("com.github.GTNewHorizons:Forgelin:2.1.0-GTNH:dev")
 
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.7.4-GTNH:dev")
+    devOnlyNonPublishable("com.github.GTNewHorizons:GT5-Unofficial:5.09.55.37:dev")
+
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.9.15-GTNH:dev")
 
     runtimeOnly fileTree("libs")
 }

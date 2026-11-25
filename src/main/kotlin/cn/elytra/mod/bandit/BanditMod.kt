@@ -25,8 +25,8 @@ object BanditMod {
     const val NAME = "Bandit Legacy"
 
     const val DEPENDENCIES =
-        "required-after:forgelin@[2.0.0-GTNH,);" + // Kotlin Coroutines 1.9.0+ Required for Flow<T>.chunked()
-            "required-after:gtnhlib@[0.5.21,);" + // GTNHLib 0.5.21 used for GTNH 2.7.0
+        "required-after:forgelin@[2.1.0-GTNH,);" + // Kotlin 2.1 runtime, required for Flow<T>.chunked()
+            "required-after:gtnhlib@[0.12.0,);" + // GTNHLib 0.12 is the current GTNH baseline
             "required-after:CodeChickenCore;" // CCC used for rendering
 
     val logger: Logger = LogManager.getLogger()
