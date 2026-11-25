@@ -95,8 +95,16 @@ object VeinMiningHUD {
                 null
             }
             y += 27 // list height
-            VeinMiningHandlerClient.selectedBlockPosList?.let {
-                drawStringWithMargin(I18n.format("bandit.message.precalculated", it.size), marginX, y)
+            if(VeinMiningConfigClient.showBlockCount) {
+                VeinMiningHandlerClient.selectedBlockPosList?.let {
+                    val limit = VeinMiningHandlerClient.selectedBlockLimit
+                    val text = if(limit > 0) {
+                        I18n.format("bandit.message.precalculated.limited", it.size, limit)
+                    } else {
+                        I18n.format("bandit.message.precalculated", it.size)
+                    }
+                    drawStringWithMargin(text, marginX, y)
+                }
             }
             // y += 9 // font height
 
@@ -187,6 +195,8 @@ object VeinMiningHUD {
                     VeinMiningNoticeType.TASK_STOP_KEY_RELEASE -> I18n.format("bandit.message.task-stop.key-release")
                     VeinMiningNoticeType.TASK_STOP_FOR_COMMAND -> I18n.format("bandit.message.task-stop.for-command")
                     VeinMiningNoticeType.TASK_STOP_BECAUSE_TOOL_MAX_DAMAGE -> I18n.format("bandit.message.task-stop.tool-max-damage")
+                    VeinMiningNoticeType.TASK_REFUSED -> I18n.format("bandit.message.task-refused")
+                    VeinMiningNoticeType.TASK_HARVEST_DONE -> I18n.format("bandit.message.harvest-done", notice.extraData["harvested"] ?: 0)
                     VeinMiningNoticeType.TASK_DONE -> {
                         val statBlocksMined = notice.extraData["statBlocksMined"] ?: 0
                         val statItemDropped = notice.extraData["statItemDropped"] ?: 0

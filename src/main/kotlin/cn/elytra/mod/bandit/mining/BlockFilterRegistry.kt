@@ -10,6 +10,7 @@ object BlockFilterRegistry {
         blockFilterMap[0] = VeinMiningBlockFilter.Companion.MATCH_BLOCK
         blockFilterMap[1] = VeinMiningBlockFilter.Companion.MATCH_BLOCK_AND_META
         blockFilterMap[2] = VeinMiningBlockFilter.Companion.ALL
+        blockFilterMap[3] = VeinMiningBlockFilter.Companion.MATCH_ORE_DICTIONARY
     }
 
     @Suppress("unused")

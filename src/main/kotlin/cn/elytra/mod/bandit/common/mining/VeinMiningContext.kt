@@ -9,6 +9,7 @@ import net.minecraft.entity.player.EntityPlayerMP
 import net.minecraft.item.ItemStack
 import net.minecraft.tileentity.TileEntity
 import net.minecraft.world.World
+import net.minecraftforge.common.util.ForgeDirection
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -27,6 +28,14 @@ data class VeinMiningContext(
     val veinMiningCountPerOperation: Int = 64,
     val harvestedDropPosition: DropPosition = DropPosition.DROP_TO_PLAYER,
     val harvestedDropTiming: DropTiming = DropTiming.ITEM_IMMEDIATELY_XP_EVENTUALLY,
+    /** Hunger exhaustion the player pays per harvested block. */
+    val exhaustionPerBlock: Double = 0.0,
+    /** The amount of durability the held tool must have left for the action to continue. */
+    val preventToolBreakAt: Int = 0,
+    /** Whether blocks the held tool cannot harvest should be skipped. */
+    val requireValidTool: Boolean = false,
+    /** The direction the player was facing when the action started, used by the shaped executors. */
+    val lookDirection: ForgeDirection = ForgeDirection.UNKNOWN,
     val statBlocksMined: AtomicInteger = AtomicInteger(0),
     val statItemDropped: MutableMap<ItemStack, Int> = newItemStackHashMap(),
     val statXpValueCollected: AtomicInteger = AtomicInteger(0),

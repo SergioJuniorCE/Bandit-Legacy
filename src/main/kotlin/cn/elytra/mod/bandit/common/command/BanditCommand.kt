@@ -1,7 +1,9 @@
 package cn.elytra.mod.bandit.common.command
 
+import cn.elytra.mod.bandit.BanditConfig
 import cn.elytra.mod.bandit.common.mining.VeinMiningContext.DropPosition
 import cn.elytra.mod.bandit.common.mining.VeinMiningContext.DropTiming
+import cn.elytra.mod.bandit.common.player_data.ActivationMode
 import cn.elytra.mod.bandit.common.player_data.veinMiningData
 import cn.elytra.mod.bandit.common.util.parseValueToEnum
 import cn.elytra.mod.bandit.mining.BlockFilterRegistry
@@ -19,6 +21,11 @@ object BanditCommand : CommandBase() {
 
     override fun getRequiredPermissionLevel(): Int = 0
 
+    private val SUB_COMMANDS = listOf(
+        "executor", "filter", "mode", "limits",
+        "drop_pos", "drop_timing", "stop_on_release", "stop", "help",
+    )
+
     override fun processCommand(
         sender: ICommandSender,
         argsArray: Array<String>,
@@ -28,6 +35,8 @@ object BanditCommand : CommandBase() {
         when(args.removeFirstOrNull()) {
             "executor", "executor-generator" -> handleExecutorSettings(sender, args)
             "filter", "block-filter" -> handleBlockFilterSettings(sender, args)
+            "mode" -> handleMode(sender, args)
+            "limits", "limit" -> handleLimits(sender)
             "stop", "halt" -> handleHaltRequest(sender)
             "drop_pos" -> handleDropPos(sender, args)
             "drop_timing" -> handleDropTiming(sender, args)
@@ -42,45 +51,27 @@ object BanditCommand : CommandBase() {
         val argsList = args.toMutableList()
 
         return when (argsList.removeFirstOrNull()) {
-            null, "" -> getListOfStringsMatchingLastWord(
-                args,
-                "stop",
-                "help",
-                "drop_pos",
-                "drop_timing",
-                "stop_on_release",
-                "block-filter",
-                "executor-generator"
-            )
+            null, "" -> getListOfStringsMatchingLastWord(args, *SUB_COMMANDS.toTypedArray())
 
-            "executor-generator", "executor", "block-filter", "filter" -> {
-                    // TODO: add support to names and update this completion
-                    emptyList()
-            }
+            "executor-generator", "executor" ->
+                getListOfStringsMatchingLastWord(args, *executorNames().toTypedArray())
 
-            "drop_pos" -> {
-                    getListOfStringsMatchingLastWord(
-                        args,
-                        *getValidEnumValues<DropPosition>().toTypedArray()
-                    )
-            }
+            "block-filter", "filter" ->
+                getListOfStringsMatchingLastWord(args, *blockFilterNames().toTypedArray())
 
-            "drop_timing" -> {
-                    getListOfStringsMatchingLastWord(
-                        args,
-                        *getValidEnumValues<DropTiming>().toTypedArray()
-                    )
-            }
+            "mode" ->
+                getListOfStringsMatchingLastWord(args, *getValidEnumValues<ActivationMode>().toTypedArray())
 
-            "stop_on_release" -> {
-                    getListOfStringsMatchingLastWord(
-                        args,
-                        "true",
-                        "false"
-                    )
-            }
+            "drop_pos" ->
+                getListOfStringsMatchingLastWord(args, *getValidEnumValues<DropPosition>().toTypedArray())
 
-            "stop", "help" -> emptyList()
+            "drop_timing" ->
+                getListOfStringsMatchingLastWord(args, *getValidEnumValues<DropTiming>().toTypedArray())
+
+            "stop_on_release" ->
+                getListOfStringsMatchingLastWord(args, "true", "false")
+
+            "limits", "limit", "stop", "help" -> emptyList()
 
             else -> super.addTabCompletionOptions(sender, args)
         }
@@ -94,37 +85,47 @@ object BanditCommand : CommandBase() {
         }
     }
 
+    private fun executorNames(): List<String> = ExecutorGeneratorRegistry.all().map { shortName(it.value.getUnlocalizedName()) }
+
+    private fun blockFilterNames(): List<String> = BlockFilterRegistry.all().map { shortName(it.value.getUnlocalizedName()) }
+
+    private fun shortName(unlocalizedName: String): String = unlocalizedName.substringAfterLast('.')
+
     private fun handleExecutorSettings(
         sender: ICommandSender,
         strings: MutableList<String>,
     ) {
         sender.withEntityPlayer { p ->
-            val id = strings.removeFirstOrNull()
-            if(id == null) {
-                val execId = p.veinMiningData.veinMiningExecutorId
+            val input = strings.removeFirstOrNull()
+            if(input == null) {
+                val current = p.veinMiningData.getExecutorGenerator()
                 sender.addChatMessage(
                     ChatComponentTranslation(
                         "command.bandit.executor.current",
-                        ChatComponentTranslation("bandit.executor.$execId")
+                        ChatComponentTranslation(current.getUnlocalizedName())
                     )
                 )
                 sender.addChatMessage(ChatComponentTranslation("command.bandit.executor.list"))
-                ExecutorGeneratorRegistry.all().forEach { id, _ ->
+                ExecutorGeneratorRegistry.all().forEach { id, executor ->
                     sender.addChatMessage(
                         ChatComponentTranslation(
                             "command.bandit.executor.list.entry",
                             id,
-                            ChatComponentTranslation("bandit.executor.$id")
+                            ChatComponentTranslation(executor.getUnlocalizedName())
                         )
                     )
                 }
-            } else {
-                val id = parseInt(sender, id)
-                val flag = true // TODO: validation
-                p.veinMiningData.veinMiningExecutorId = id
-                if(flag) sender.addChatMessage(ChatComponentTranslation("command.bandit.executor.set.ok"))
-                else sender.addChatMessage(ChatComponentTranslation("command.bandit.executor.set.fail"))
+                return@withEntityPlayer
             }
+
+            val id = resolveId(input, ExecutorGeneratorRegistry.all().keys)
+                ?: resolveByName(input, ExecutorGeneratorRegistry.all().mapValues { it.value.getUnlocalizedName() })
+            if(id == null) {
+                sender.addChatMessage(ChatComponentTranslation("command.bandit.executor.set.fail"))
+                return@withEntityPlayer
+            }
+            p.veinMiningData.veinMiningExecutorId = id
+            sender.addChatMessage(ChatComponentTranslation("command.bandit.executor.set.ok"))
         }
     }
 
@@ -133,36 +134,97 @@ object BanditCommand : CommandBase() {
         strings: MutableList<String>,
     ) {
         sender.withEntityPlayer { p ->
-            val id = strings.removeFirstOrNull()
-            if(id == null) {
-                val filterId = p.veinMiningData.veinMiningBlockFilterId
+            val input = strings.removeFirstOrNull()
+            if(input == null) {
+                val current = p.veinMiningData.getBlockFilter()
                 sender.addChatMessage(
                     ChatComponentTranslation(
                         "command.bandit.filter.current",
-                        ChatComponentTranslation("bandit.filter.$filterId")
+                        ChatComponentTranslation(current.getUnlocalizedName())
                     )
                 )
                 sender.addChatMessage(ChatComponentTranslation("command.bandit.filter.list"))
-                BlockFilterRegistry.all().forEach { id, _ ->
+                BlockFilterRegistry.all().forEach { id, filter ->
                     sender.addChatMessage(
                         ChatComponentTranslation(
                             "command.bandit.filter.list.entry",
-                            ChatComponentTranslation("bandit.filter.$filterId")
+                            id,
+                            ChatComponentTranslation(filter.getUnlocalizedName())
                         )
                     )
                 }
-            } else {
-                val id = parseInt(sender, id)
-                val flag = true // TODO: validation
-                p.veinMiningData.veinMiningBlockFilterId = id
-                if(flag) sender.addChatMessage(ChatComponentTranslation("command.bandit.filter.set.ok"))
-                else sender.addChatMessage(ChatComponentTranslation("command.bandit.filter.set.fail"))
+                return@withEntityPlayer
             }
+
+            val id = resolveByName(input, BlockFilterRegistry.all().mapValues { it.value.getUnlocalizedName() })
+                ?: resolveId(input, BlockFilterRegistry.all().keys)
+            if(id == null) {
+                sender.addChatMessage(ChatComponentTranslation("command.bandit.filter.set.fail"))
+                return@withEntityPlayer
+            }
+            p.veinMiningData.veinMiningBlockFilterId = id
+            sender.addChatMessage(ChatComponentTranslation("command.bandit.filter.set.ok"))
         }
     }
 
+    private fun resolveId(input: String, validIds: Set<Int>): Int? {
+        val id = input.toIntOrNull() ?: return null
+        return id.takeIf { it in validIds }
+    }
+
+    private fun resolveByName(input: String, names: Map<Int, String>): Int? {
+        val needle = input.lowercase()
+        return names.entries.firstOrNull { (_, name) ->
+            shortName(name).lowercase() == needle || name.lowercase() == needle
+        }?.key
+    }
+
+    private fun handleMode(sender: ICommandSender, args: MutableList<String>) {
+        sender.withEntityPlayer { p ->
+            if(args.isEmpty()) {
+                sender.addChatMessage(
+                    ChatComponentTranslation(
+                        "command.bandit.mode.current",
+                        ChatComponentTranslation(p.veinMiningData.activationMode.getUnlocalizedName()),
+                        getValidEnumValues<ActivationMode>().joinToString()
+                    )
+                )
+                return@withEntityPlayer
+            }
+
+            val value = parseValueToEnum<ActivationMode>(args[0])
+            if(value == null) {
+                sender.addChatMessage(
+                    ChatComponentTranslation(
+                        "command.bandit.mode.invalid_argument",
+                        args[0],
+                        getValidEnumValues<ActivationMode>().joinToString()
+                    )
+                )
+                return@withEntityPlayer
+            }
+
+            p.veinMiningData.activationMode = value
+            sender.addChatMessage(
+                ChatComponentTranslation("command.bandit.mode.ok", ChatComponentTranslation(value.getUnlocalizedName()))
+            )
+        }
+    }
+
+    private fun handleLimits(sender: ICommandSender) {
+        sender.addChatMessage(
+            ChatComponentTranslation(
+                "command.bandit.limits",
+                BanditConfig.maxBlocksPerOperation,
+                BanditConfig.blocksPerOperation,
+                BanditConfig.cooldownTicks,
+                BanditConfig.exhaustionPerBlock,
+            )
+        )
+    }
+
     private fun handleHelp(sender: ICommandSender) {
-        for(i in 0..3) {
+        for(i in 0..7) {
             sender.addChatMessage(ChatComponentTranslation("command.bandit.help.$i"))
         }
     }
@@ -242,31 +304,35 @@ object BanditCommand : CommandBase() {
         }
     }
 
+    /**
+     * Kept for compatibility with 1.x: `stop_on_release true` is hold mode, `false` is toggle mode.
+     */
     private fun handleStopOnRelease(sender: ICommandSender, args: MutableList<String>) {
         sender.withEntityPlayer { p ->
             if(args.isEmpty()) {
                 p.addChatMessage(
                     ChatComponentTranslation(
                         "command.bandit.stop_on_release",
-                        p.veinMiningData.stopVeinMiningOnKeyRelease
+                        p.veinMiningData.activationMode.stopsOnKeyRelease
                     )
                 )
-            } else {
-                when(val value = args[0].toBooleanStrictOrNull()) {
-                    null -> {
-                        p.addChatMessage(
-                            ChatComponentTranslation(
-                                "command.bandit.stop_on_release.invalid_argument",
-                                args[0],
-                                "[true, false]"
-                            )
-                        )
-                    }
+                return@withEntityPlayer
+            }
 
-                    else -> {
-                        p.veinMiningData.stopVeinMiningOnKeyRelease = value
-                        p.addChatMessage(ChatComponentTranslation("command.bandit.stop_on_release.ok", value))
-                    }
+            when(val value = args[0].toBooleanStrictOrNull()) {
+                null -> {
+                    p.addChatMessage(
+                        ChatComponentTranslation(
+                            "command.bandit.stop_on_release.invalid_argument",
+                            args[0],
+                            "[true, false]"
+                        )
+                    )
+                }
+
+                else -> {
+                    p.veinMiningData.activationMode = if(value) ActivationMode.HOLD else ActivationMode.TOGGLE
+                    p.addChatMessage(ChatComponentTranslation("command.bandit.stop_on_release.ok", value))
                 }
             }
         }

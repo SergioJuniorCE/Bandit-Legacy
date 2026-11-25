@@ -1,5 +1,6 @@
 package cn.elytra.mod.bandit.common.player_data
 
+import cn.elytra.mod.bandit.BanditConfig
 import cn.elytra.mod.bandit.BanditMod
 import cn.elytra.mod.bandit.common.BanditCoroutines
 import cn.elytra.mod.bandit.common.mining.VeinMiningContext
@@ -7,8 +8,10 @@ import cn.elytra.mod.bandit.common.mining.VeinMiningContext.DropPosition
 import cn.elytra.mod.bandit.common.mining.VeinMiningContext.DropTiming
 import cn.elytra.mod.bandit.common.mining.VeinMiningDataSave
 import cn.elytra.mod.bandit.common.mining.VeinMiningHandler
+import cn.elytra.mod.bandit.common.util.lookDirection
 import cn.elytra.mod.bandit.common.util.parseValueToEnum
 import cn.elytra.mod.bandit.mining.BlockFilterRegistry
+import cn.elytra.mod.bandit.mining.MiningRules
 import cn.elytra.mod.bandit.mining.ExecutorGeneratorRegistry
 import cn.elytra.mod.bandit.mining.exception.CommandCancellation
 import cn.elytra.mod.bandit.mining.exception.FriendlyCancellationException
@@ -30,6 +33,7 @@ import net.minecraft.entity.player.EntityPlayerMP
 import net.minecraft.nbt.NBTTagCompound
 import net.minecraft.server.MinecraftServer
 import net.minecraft.util.MovingObjectPosition
+import net.minecraftforge.common.util.ForgeDirection
 import java.util.*
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.properties.Delegates
@@ -73,7 +77,15 @@ data class VeinMiningPlayerData(
     var veinMiningKeyPressed: Boolean by Delegates.observable(false) { _, oldValue, newValue ->
         if(oldValue != newValue) {
             if(!newValue) { // key released
-                if(stopVeinMiningOnKeyRelease) cancelJob(KeyReleaseCancellation())
+                // Releasing the key disarms the next action, but never interrupts one that has already started:
+                // clicking a block is what commits to it, exactly like FTB Ultimine.
+                currentJob
+                    ?.takeIf { it.type == TypedJob.JobType.VeinMiningPrecalculating }
+                    ?.job
+                    ?.cancel(KeyReleaseCancellation())
+                if(activationMode.stopsOnKeyRelease) {
+                    precalculatedVeinBlocks = null
+                }
             }
         }
     }
@@ -90,11 +102,23 @@ data class VeinMiningPlayerData(
         }
     }
 
-    var stopVeinMiningOnKeyRelease: Boolean by Delegates.observable(false) { _, oldValue, newValue ->
+    var activationMode: ActivationMode by Delegates.observable(ActivationMode.HOLD) { _, oldValue, newValue ->
         if(oldValue != newValue) {
             save()
+            precalculatedVeinBlocks = null
         }
     }
+
+    /**
+     * The world time, in ticks, when the last vein mining action of this player ended. Used for the cooldown.
+     */
+    internal var lastActionEndedAt: Long = 0L
+
+    /**
+     * Set while a right-click action (crop harvesting, tilling) is breaking blocks, so that the blocks it breaks
+     * do not start a vein mining action of their own.
+     */
+    var directActionInProgress: Boolean = false
 
     /**
      * The hash of the context when the precalculate take place.
@@ -107,11 +131,12 @@ data class VeinMiningPlayerData(
      */
     var precalculatedVeinBlocks: List<BlockPos>? by Delegates.observable(null) { _, oldValue, newValue ->
         if(oldValue != newValue) {
+            val player = getPlayerFromUUID(uuid)?.asMP
             if(newValue == null) {
                 precalculatedHash = -1
-                BanditNetwork.syncBlockCacheToClient(getPlayer().asMP, null)
+                if(player != null) BanditNetwork.syncBlockCacheToClient(player, null)
             } else {
-                BanditNetwork.syncBlockCacheToClient(getPlayer().asMP, newValue)
+                if(player != null) BanditNetwork.syncBlockCacheToClient(player, newValue)
             }
         }
     }
@@ -122,6 +147,7 @@ data class VeinMiningPlayerData(
         const val TAG_PREFERRED_DROP_POS = "HarvestedDropPosition"
         const val TAG_PREFERRED_DROP_TIMING = "HarvestedDropTiming"
         const val TAG_STOP_VEIN_MINING_ON_KEY_RELEASE = "StopVeinMiningOnKeyRelease"
+        const val TAG_ACTIVATION_MODE = "ActivationMode"
 
         internal val InstanceMap = mutableMapOf<String, VeinMiningPlayerData>()
 
@@ -133,8 +159,13 @@ data class VeinMiningPlayerData(
         /**
          * Used to calculate the hash of cached vein blocks.
          */
-        internal fun precalculatedHash(bp: BlockPos, block: Block, blockMeta: Int): Int {
-            return Objects.hash(bp, block, blockMeta)
+        internal fun precalculatedHash(
+            bp: BlockPos,
+            block: Block,
+            blockMeta: Int,
+            direction: ForgeDirection,
+        ): Int {
+            return Objects.hash(bp, block, blockMeta, direction)
         }
 
         fun getPlayerFromUUID(uuid: String): EntityPlayer? {
@@ -174,7 +205,14 @@ data class VeinMiningPlayerData(
             nbtTag.getString(TAG_PREFERRED_DROP_TIMING),
             DropTiming.ITEM_IMMEDIATELY_XP_EVENTUALLY
         )
-        stopVeinMiningOnKeyRelease = nbtTag.getBoolean(TAG_STOP_VEIN_MINING_ON_KEY_RELEASE)
+        activationMode = when {
+            nbtTag.hasKey(TAG_ACTIVATION_MODE) -> parseValueToEnum(nbtTag.getString(TAG_ACTIVATION_MODE), ActivationMode.HOLD)
+            // migrate the 1.x boolean, where "stop on release" meant the same thing as hold mode
+            nbtTag.hasKey(TAG_STOP_VEIN_MINING_ON_KEY_RELEASE) ->
+                if(nbtTag.getBoolean(TAG_STOP_VEIN_MINING_ON_KEY_RELEASE)) ActivationMode.HOLD else ActivationMode.TOGGLE
+
+            else -> ActivationMode.HOLD
+        }
     }
 
     /**
@@ -185,7 +223,7 @@ data class VeinMiningPlayerData(
         nbtTag.setInteger(TAG_BLOCK_FILTER, veinMiningBlockFilterId)
         nbtTag.setString(TAG_PREFERRED_DROP_POS, harvestedDropPosition.name)
         nbtTag.setString(TAG_PREFERRED_DROP_TIMING, harvestedDropTiming.name)
-        nbtTag.setBoolean(TAG_STOP_VEIN_MINING_ON_KEY_RELEASE, stopVeinMiningOnKeyRelease)
+        nbtTag.setString(TAG_ACTIVATION_MODE, activationMode.name)
     }
 
     fun getExecutorGenerator(): VeinMiningExecutorGenerator {
@@ -219,7 +257,8 @@ data class VeinMiningPlayerData(
         val blockAndMeta = block to blockMeta
         val blockTileEntity = world.getTileEntity(mop.blockX, mop.blockY, mop.blockZ)
 
-        val hash = precalculatedHash(pos, block, blockMeta)
+        val lookDirection = player.lookDirection()
+        val hash = precalculatedHash(pos, block, blockMeta, lookDirection)
         if(precalculatedVeinBlocks != null) {
             if(hash == precalculatedHash) return // same cache hit
         }
@@ -234,6 +273,8 @@ data class VeinMiningPlayerData(
             playerSupplier = { getPlayer().asMP },
             filter = getBlockFilter(),
             executionId = executionId,
+            veinMiningMaxCountLimit = BanditConfig.maxBlocksPerOperation,
+            lookDirection = lookDirection,
         )
 
         BanditMod.logger.info("Start caching #${executionId}")
@@ -271,16 +312,25 @@ data class VeinMiningPlayerData(
 
         val player = getPlayer()
         val world = player.worldObj
+
+        if(isBlockedByCooldown(player)) return
+        if(!passesActionRequirements(player)) return
+
         val pos = BlockPos(x, y, z)
         val block = world.getBlock(x, y, z)
         val blockMeta = world.getBlockMetadata(x, y, z)
+        if(!MiningRules.isBlockAllowed(block, blockMeta)) {
+            notifyRefused(player)
+            return
+        }
         val blockAndMeta = block to blockMeta
         val blockTileEntity = world.getTileEntity(x, y, z)
         val executionId = VeinMiningHandler.executionCounter.andIncrement
 
-        // check hash, in case of MOP traced to a wrong block.
+        // check hash, in case of MOP traced to a wrong block or a direction change.
         // if so, we need to recalculate the blocks now, and give up the cached ones.
-        val hash = precalculatedHash(pos, block, blockMeta)
+        val lookDirection = player.lookDirection()
+        val hash = precalculatedHash(pos, block, blockMeta, lookDirection)
         val precalculatedVeinBlocksChecked = if(hash == precalculatedHash) precalculatedVeinBlocks else null
 
         val context = VeinMiningContext(
@@ -292,8 +342,14 @@ data class VeinMiningPlayerData(
             filter = getBlockFilter(),
             executionId = executionId,
             precalculatedBlockPosList = precalculatedVeinBlocksChecked,
+            veinMiningMaxCountLimit = BanditConfig.maxBlocksPerOperation,
+            veinMiningCountPerOperation = BanditConfig.blocksPerOperation,
             harvestedDropPosition = harvestedDropPosition,
             harvestedDropTiming = harvestedDropTiming,
+            exhaustionPerBlock = BanditConfig.exhaustionPerBlock,
+            preventToolBreakAt = BanditConfig.preventToolBreakAt,
+            requireValidTool = BanditConfig.requireValidToolForBlock,
+            lookDirection = lookDirection,
         )
         val executor = getExecutorGenerator().generate(context)
 
@@ -358,12 +414,48 @@ data class VeinMiningPlayerData(
 
             // play sound effects
             world.playSoundEffect(player.posX, player.posY, player.posZ, "note.harp", 3.0F, 3.5F)
+            // remember when this ended, the cooldown is measured from here
+            lastActionEndedAt = world.totalWorldTime
             // clear caches
             precalculatedVeinBlocks = null
         }
         currentJob = TypedJob(job, TypedJob.JobType.VeinMining)
 
         job.start()
+    }
+
+    /**
+     * @return `true` while the configured cooldown between two vein mining actions is still running.
+     */
+    private fun isBlockedByCooldown(player: EntityPlayer): Boolean {
+        val cooldown = BanditConfig.cooldownTicks
+        if(cooldown <= 0) return false
+        return player.worldObj.totalWorldTime - lastActionEndedAt < cooldown
+    }
+
+    /**
+     * Checks the tool requirement of the server configuration.
+     */
+    private fun passesActionRequirements(player: EntityPlayer): Boolean {
+        if(BanditConfig.requireTool && !MiningRules.isHoldingTool(player)) {
+            notifyRefused(player)
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Tells the player that the action was refused, so that holding the key and getting nothing does not look like
+     * a broken key binding.
+     */
+    private fun notifyRefused(player: EntityPlayer) {
+        val mp = player as? EntityPlayerMP ?: return
+        BanditNetwork.pushSimpleNoticeToClient(
+            mp,
+            VeinMiningNoticeType.TASK_REFUSED,
+            fadeDelay = 20,
+            fadeTicks = 20,
+        )
     }
 
     fun stopJob(reason: String = "no reason") {

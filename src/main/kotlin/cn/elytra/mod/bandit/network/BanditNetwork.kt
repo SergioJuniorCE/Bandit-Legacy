@@ -1,5 +1,6 @@
 package cn.elytra.mod.bandit.network
 
+import cn.elytra.mod.bandit.BanditConfig
 import cn.elytra.mod.bandit.BanditMod
 import cn.elytra.mod.bandit.common.player_data.VeinMiningNoticeType
 import com.gtnewhorizon.gtnhlib.blockpos.BlockPos
@@ -72,7 +73,13 @@ object BanditNetwork {
     }
 
     fun syncBlockCacheToClient(p: EntityPlayerMP, posList: List<BlockPos>?) {
-        networkW.sendTo(S2CSelectedBlockCachePacket().apply { this.posList = posList ?: emptyList() }, p)
+        networkW.sendTo(
+            S2CSelectedBlockCachePacket().apply {
+                this.posList = posList ?: emptyList()
+                this.maxBlocks = BanditConfig.maxBlocksPerOperation
+            },
+            p
+        )
     }
 
     /**
@@ -95,6 +102,7 @@ object BanditNetwork {
     fun pushSimpleNoticeToClient(
         p: EntityPlayerMP,
         noticeType: VeinMiningNoticeType,
+        extraData: Map<String, Int> = emptyMap(),
         fadeDelay: Int = 0,
         fadeTicks: Int = 0
     ): Long {
@@ -104,7 +112,7 @@ object BanditNetwork {
                 action = S2CNoticePacket.NoticeAction.PUSH
                 this.noticeId = noticeId
                 this.noticeType = noticeType.id
-                this.extraData = emptyMap()
+                this.extraData = extraData
                 this.fadeDelay = fadeDelay
                 this.fadeTicks = fadeTicks
             },

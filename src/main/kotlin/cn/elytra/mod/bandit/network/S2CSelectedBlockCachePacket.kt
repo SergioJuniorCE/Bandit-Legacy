@@ -11,9 +11,13 @@ class S2CSelectedBlockCachePacket : IMessage {
 
     var posList: List<BlockPos> = emptyList()
 
+    /** The block limit the server would apply to this selection, used by the HUD. */
+    var maxBlocks: Int = 0
+
     override fun fromBytes(buf: ByteBuf) {
         val length = buf.readInt()
         this.posList = List(length) { BlockPos().set(buf.readLong()) }
+        this.maxBlocks = buf.readInt()
     }
 
     override fun toBytes(buf: ByteBuf) {
@@ -21,6 +25,7 @@ class S2CSelectedBlockCachePacket : IMessage {
         posList.forEach { pos ->
             buf.writeLong(pos.asLong())
         }
+        buf.writeInt(maxBlocks)
     }
 
     class Handler : IMessageHandler<S2CSelectedBlockCachePacket, IMessage> {
@@ -30,6 +35,7 @@ class S2CSelectedBlockCachePacket : IMessage {
         ): IMessage? {
             VeinMiningHandlerClient.selectedBlockPosList =
                 message.posList.takeIf { it.isNotEmpty() }
+            VeinMiningHandlerClient.selectedBlockLimit = message.maxBlocks
             return null
         }
     }
