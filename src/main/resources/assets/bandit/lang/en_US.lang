@@ -2,11 +2,19 @@ bandit.executor.manhattan=Manhattan
 bandit.executor.manhattan-plus=Manhattan+
 bandit.executor.manhattan-large=Manhattan(L)
 bandit.executor.large-scan=Large-scan
+bandit.executor.tunnel=Tunnel
+bandit.executor.tunnel-small=Small Tunnel
+bandit.executor.tunnel-escape=Escape Tunnel
+bandit.executor.cube=3x3x3 Cube
 
 bandit.block-filter.all=All
 bandit.block-filter.none=None
 bandit.block-filter.match-block=Matching Block
 bandit.block-filter.match-block-and-meta=Matching Block and Metadata
+bandit.block-filter.match-ore-dictionary=Matching Ore Dictionary
+
+bandit.activation-mode.hold=Hold
+bandit.activation-mode.toggle=Toggle
 
 bandit.message.task-starting=§aStarting Vein Mining task
 bandit.message.task-halt-hint=§aYou can type §6/bandit stop §ato halt a ongoing task
@@ -14,27 +22,38 @@ bandit.message.task-done=§aVein Mining done! §7Harvested %s §7blocks, and dro
 bandit.message.task-stop.tool-max-damage=§aVein Mining stopped to prevent the tool from breaking.
 bandit.message.task-stop.key-release=§aVein Mining stopped because the key was released.
 bandit.message.task-stop.for-command=§aVein Mining stopped because the command.
+bandit.message.task-refused=§cBandit cannot vein mine here. Check the tool, the block and the cooldown.
+bandit.message.harvest-done=§aHarvested %s blocks
 
 bandit.message.sync-from-server=§7Updated your settings to %s §7and %s
 
-bandit.message.activating=§aActivating
+bandit.message.activating=§aVein Mining
 bandit.message.precalculated=§3Selected: %s
+bandit.message.precalculated.limited=§3Selected: %s §7of %s
 
 command.bandit.usage=/bandit help
-command.bandit.help.0=§6/bandit executor [executorId] - §7list or set the executors
-command.bandit.help.1=§6/bandit filter [blockFilterId] - §7list or set the block filters
-command.bandit.help.2=§6/bandit drop_pos [dropPosition] - §7list or set the position to drop at
-command.bandit.help.3=§6/bandit drop_timing [dropTiming] - §7list or set the timing to drop
+command.bandit.help.0=§6/bandit executor [executor] - §7list or set the executors
+command.bandit.help.1=§6/bandit filter [filter] - §7list or set the block filters
+command.bandit.help.2=§6/bandit mode [hold|toggle] - §7list or set how the key behaves
+command.bandit.help.3=§6/bandit limits - §7show the server limits
+command.bandit.help.4=§6/bandit drop_pos [dropPosition] - §7list or set the position to drop at
+command.bandit.help.5=§6/bandit drop_timing [dropTiming] - §7list or set the timing to drop
+command.bandit.help.6=§6/bandit stop - §7stop the ongoing vein mining task
+command.bandit.help.7=§6/bandit stop_on_release [true|false] - §7same as /bandit mode
 command.bandit.executor.current=You are currently using %s
 command.bandit.executor.list=Possible Executors:
 command.bandit.executor.list.entry=%s %s
 command.bandit.executor.set.ok=OK!
-command.bandit.executor.set.fail=Failed! Possibly it is an invalid id.
+command.bandit.executor.set.fail=Failed! Possibly it is an invalid executor.
 command.bandit.filter.current=You are currently using %s
 command.bandit.filter.list=Possible Filters:
 command.bandit.filter.list.entry=%s %s
 command.bandit.filter.set.ok=OK!
-command.bandit.filter.set.fail=Failed! Possibly it is an invalid id.
+command.bandit.filter.set.fail=Failed! Possibly it is an invalid filter.
+command.bandit.mode.current=Currently %s, valid values are %s
+command.bandit.mode.ok=OK, new value is %s!
+command.bandit.mode.invalid_argument=Invalid %s, valid values are %s
+command.bandit.limits=§6Limits: §7%s blocks per action, %s blocks per tick, %s ticks cooldown, %s exhaustion per block
 command.bandit.drop_pos=Currently %s, valid values are %s
 command.bandit.drop_pos.ok=OK, new value is %s!
 command.bandit.drop_pos.invalid_argument=Invalid %s, valid values are %s

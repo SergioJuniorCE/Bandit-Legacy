@@ -29,7 +29,7 @@ class VeinMiningEventListener {
             val p = e.player
             if(p is EntityPlayerMP && p !is FakePlayer) {
                 val vmData = p.veinMiningData
-                if(vmData.hasJobRunning) return
+                if(vmData.hasJobRunning || vmData.directActionInProgress) return
                 if(vmData.veinMiningKeyPressed) {
                     // yes, the start of the evil!
                     p.veinMiningData.startVeinMining(e.x, e.y, e.z)

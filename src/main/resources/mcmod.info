@@ -4,7 +4,7 @@
     {
       "modid": "${modId}",
       "name": "${modName}",
-      "description": "Get your ores like a Bandit.",
+      "description": "Get your ores like a Bandit. Vein mining with shaped modes, server limits and right-click actions.",
       "version": "${modVersion}",
       "mcversion": "${minecraftVersion}",
       "url": "https://github.com/ElytraServers/Bandit-Legacy",

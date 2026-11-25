@@ -41,7 +41,18 @@ enum class VeinMiningNoticeType(val id: Int) {
      * Task completed successfully.
      * Mining chain finished naturally and requires statistical processing.
      */
-    TASK_DONE(6);
+    TASK_DONE(6),
+
+    /**
+     * The action was refused by the server rules, for example because the player is not holding a tool,
+     * the targeted block is blacklisted, or the cooldown is still running.
+     */
+    TASK_REFUSED(7),
+
+    /**
+     * A right-click action (crop harvesting or tilling) finished.
+     */
+    TASK_HARVEST_DONE(8);
 
     companion object {
         /**

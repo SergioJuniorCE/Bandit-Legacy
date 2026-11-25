@@ -16,10 +16,38 @@ object VeinMiningConfigClient {
 
     var menuPosition = MenuPosition.TOP_LEFT
 
+    /** Max amount of blocks the selection outline is drawn for. 0 disables the outline. */
+    var outlineBlockLimit = 512
+
+    /** Alpha (0-255) of the selection outline. */
+    var outlineAlpha = 160
+
+    /** Width of the selection outline lines. */
+    var outlineLineWidth = 2.0f
+
+    /** Whether the amount of selected blocks is shown next to the HUD. */
+    var showBlockCount = true
+
     private val propMarginX = config.get("client", "menu-margin-x", 40)
     private val propMarginY = config.get("client", "menu-margin-y", 40)
 
     private val propMenuPosition = config.getAsEnum("client", "menu-position", MenuPosition.TOP_LEFT)
+    private val propOutlineBlockLimit = config.get(
+        "client", "outline-block-limit", 512,
+        "How many blocks the selection outline is rendered for. 0 disables the outline."
+    ).setMinValue(0)
+    private val propOutlineAlpha = config.get(
+        "client", "outline-alpha", 160,
+        "Alpha of the selection outline, from 0 (invisible) to 255 (solid)."
+    ).setMinValue(0).setMaxValue(255)
+    private val propOutlineLineWidth = config.get(
+        "client", "outline-line-width", 2.0,
+        "Width of the selection outline lines."
+    ).setMinValue(0.5).setMaxValue(8.0)
+    private val propShowBlockCount = config.get(
+        "client", "show-block-count", true,
+        "Show how many blocks the current selection would mine."
+    )
 
     fun reload() {
         menuMarginX = propMarginX.getInt(menuMarginX)
@@ -30,6 +58,10 @@ object VeinMiningConfigClient {
             propMenuPosition.set(MenuPosition.TOP_LEFT.name)
             MenuPosition.TOP_LEFT
         }
+        outlineBlockLimit = propOutlineBlockLimit.getInt(outlineBlockLimit)
+        outlineAlpha = propOutlineAlpha.getInt(outlineAlpha)
+        outlineLineWidth = propOutlineLineWidth.getDouble(outlineLineWidth.toDouble()).toFloat()
+        showBlockCount = propShowBlockCount.getBoolean(showBlockCount)
     }
 
     fun save() {

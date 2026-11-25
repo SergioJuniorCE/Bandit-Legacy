@@ -6,6 +6,7 @@ import cn.elytra.mod.bandit.common.mining.VeinMiningContext
 import cn.elytra.mod.bandit.common.mining.VeinMiningContext.DropPosition
 import cn.elytra.mod.bandit.common.player_data.veinMiningData
 import cn.elytra.mod.bandit.mining.HarvestCollector
+import cn.elytra.mod.bandit.mining.MiningRules
 import cn.elytra.mod.bandit.mining.event.VeinMiningEvent
 import cn.elytra.mod.bandit.mining.exception.ToolMaxDamage
 import com.gtnewhorizon.gtnhlib.blockpos.BlockPos
@@ -27,7 +28,8 @@ abstract class SequencedVeinMiningExecutorGenerator : VeinMiningExecutorGenerato
     abstract fun createSequence(context: VeinMiningContext): Flow<BlockPos>
 
     override suspend fun precalculateBlockPosList(context: VeinMiningContext): List<BlockPos> {
-        return createSequence(context).toList()
+        // the preview has to show exactly what the action is going to harvest, so the limit is applied here too
+        return createSequence(context).take(context.veinMiningMaxCountLimit).toList()
     }
 
     /**
@@ -41,11 +43,7 @@ abstract class SequencedVeinMiningExecutorGenerator : VeinMiningExecutorGenerato
     }
 
     protected open fun equippedToolWithMaxDamage(context: VeinMiningContext): Boolean {
-        val equippedItem: ItemStack? = context.getPlayer().currentEquippedItem
-        if (equippedItem != null && equippedItem.isItemStackDamageable) {
-            return (equippedItem.maxDamage - equippedItem.itemDamage < 1)
-        }
-        return false
+        return !MiningRules.hasUsableDurability(context.getPlayer(), context.preventToolBreakAt)
     }
 
     /**
@@ -54,13 +52,29 @@ abstract class SequencedVeinMiningExecutorGenerator : VeinMiningExecutorGenerato
      * safe to do anything!
      */
     protected open fun doBlockHarvestOn(context: VeinMiningContext, pos: BlockPos) {
-        if (equippedToolWithMaxDamage(context)) {
+        if(equippedToolWithMaxDamage(context)) {
             context.getPlayer().veinMiningData.cancelJob(ToolMaxDamage())
             return
         }
 
+        val player = context.getPlayer()
+
+        // shaped actions may walk over blocks the tool cannot touch; skip them instead of grinding through
+        if(context.requireValidTool) {
+            val block = context.world.getBlock(pos.x, pos.y, pos.z)
+            if(!MiningRules.canHarvestWithHeldTool(player, block)) return
+        }
+
+        if(!MiningRules.isBlockAllowed(context.world.getBlock(pos.x, pos.y, pos.z), context.world.getBlockMetadata(pos.x, pos.y, pos.z))) {
+            return
+        }
+
         val (drops, xpValue) = HarvestCollector.withHarvestCollectorScope {
-            context.getPlayer().theItemInWorldManager.tryHarvestBlock(pos.x, pos.y, pos.z)
+            player.theItemInWorldManager.tryHarvestBlock(pos.x, pos.y, pos.z)
+        }
+
+        if(context.exhaustionPerBlock > 0.0) {
+            player.addExhaustion(context.exhaustionPerBlock.toFloat())
         }
 
         when (context.harvestedDropTiming) {

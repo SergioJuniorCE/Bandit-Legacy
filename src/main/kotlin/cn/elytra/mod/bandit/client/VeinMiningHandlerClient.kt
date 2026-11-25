@@ -51,9 +51,9 @@ object VeinMiningHandlerClient {
     var selectedBlockPosList: List<BlockPos>? = null
 
     /**
-     * The max count of block positions to render
+     * The block limit the server applies to the current selection.
      */
-    var maxSelectionRenderCount = 1024
+    var selectedBlockLimit = 0
 
     init {
         // register the callback
@@ -115,9 +115,7 @@ object VeinMiningHandlerClient {
     fun onRenderSelectedBlock(e: RenderWorldLastEvent) {
         val selectedBlockPosList = selectedBlockPosList
         if(keyPressed && selectedBlockPosList != null && selectedBlockPosList.isNotEmpty()) {
-            if(selectedBlockPosList.size <= maxSelectionRenderCount) {
-                VeinMiningSelectionRenderer.render(e, selectedBlockPosList)
-            }
+            VeinMiningSelectionRenderer.render(e, selectedBlockPosList)
         }
     }
 
